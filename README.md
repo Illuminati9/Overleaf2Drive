@@ -1,23 +1,24 @@
-# Overleaf2Drive Auto-Sync
+# Overleaf2Drive Sync
 
-> A Chrome Extension (Manifest V3) that automatically syncs your compiled Overleaf PDFs to Google Drive every time you recompile.
+> A Chrome Extension (Manifest V3) that lets you manually sync your compiled Overleaf PDFs directly to Google Drive.
 
 ## How It Works
 
-1. **Install** the extension and click **Connect Google Drive** (one-time login).
-2. **Open any Overleaf project** and hit **Recompile** as you normally would.
-3. The extension **detects the compilation**, fetches the PDF, and uploads it to a **"Overleaf Sync"** folder in your Google Drive — automatically.
-4. If the file already exists, it **overwrites the content** so your sharing link never changes.
+1. **Install** the extension and click **Connect Google Drive** (one-time login) in the extension popup.
+2. **Open any Overleaf project**. You will see a new **☁️ Drive Sync** button injected next to the standard Recompile button.
+3. Click **Drive Sync**.
+4. The first time you sync a project, the extension UI will automatically open and ask you to **Create New File**. It will create a new PDF in a **"Overleaf Sync"** folder in your Google Drive.
+5. On subsequent syncs for that project, clicking the button will **update the existing file** so your sharing link never changes, appending a new version to its history without renaming the file on Drive.
 
 ---
 
 ## File Structure
 
-```
+```text
 overtodrive/
 ├── manifest.json          # Extension configuration (MV3)
-├── background.js          # Service worker: OAuth + Drive API
-├── content.js             # Injected into Overleaf: detects recompile + fetches PDF
+├── background.js          # Service worker: OAuth, Drive API, linking logic
+├── content.js             # Injected into Overleaf: adds Sync button + fetches PDF
 ├── popup/
 │   ├── popup.html         # Extension popup UI
 │   ├── popup.js           # Popup controller logic
@@ -93,44 +94,34 @@ overtodrive/
 
 1. Click the **Overleaf2Drive** icon in your Chrome toolbar.
 2. Click **Connect Google Drive** and authorize with your Google account.
-3. Open any project on [Overleaf](https://www.overleaf.com) and recompile.
-4. Your PDF will automatically appear in **Google Drive → Overleaf Sync**.
+3. Open any project on [Overleaf](https://www.overleaf.com) and you will see the **Drive Sync** button. Click it to sync!
 
 ---
 
 ## Architecture
 
+```text
+┌─────────────────────────┐     ┌────────────────────────┐     ┌──────────────┐
+│   Overleaf Page         │     │  Background Service    │     │ Google Drive │
+│                         │     │  Worker                │     │              │
+│  content.js:            │     │  background.js:        │     │              │
+│  • Injects Sync button  │────▶│  • Gets OAuth token    │────▶│  • Folder:   │
+│  • Handles manual click │     │  • Finds/creates       │     │    "Overleaf │
+│  • Fetches PDF          │     │    sync folder         │     │     Sync"    │
+│  • Sends base64 data    │     │  • Creates/updates     │     │  • PDF file  │
+│                         │     │    PDF file            │     │              │
+│  popup.html/js:         │     │  • Stores sync stats   │     │              │
+│  • Auth UI              │────▶│  • Opens UI on 1st sync│     │              │
+│  • Link Project UI      │     │                        │     │              │
+└─────────────────────────┘     └────────────────────────┘     └──────────────┘
 ```
-┌─────────────────────┐     ┌────────────────────────┐     ┌──────────────┐
-│   Overleaf Page      │     │  Background Service    │     │ Google Drive │
-│                      │     │  Worker                │     │              │
-│  content.js:         │     │  background.js:        │     │              │
-│  • Detects recompile │────▶│  • Gets OAuth token    │────▶│  • Folder:   │
-│  • Fetches PDF       │     │  • Finds/creates       │     │    "Overleaf │
-│  • Sends base64 data │     │    sync folder         │     │     Sync"    │
-│                      │     │  • Creates/updates     │     │  • PDF file  │
-│  popup.html/js:      │     │    PDF file            │     │              │
-│  • Auth UI           │────▶│  • Stores sync stats   │     │              │
-│  • Status display    │     │                        │     │              │
-└─────────────────────┘     └────────────────────────┘     └──────────────┘
-```
 
-### Detection Strategy (content.js)
-
-| Method | How | Reliability |
-|--------|-----|-------------|
-| **XHR/Fetch interception** | Hooks into `XMLHttpRequest` and `fetch()` to catch `/compile` POST responses | ⭐⭐⭐ Primary |
-| **MutationObserver** | Watches the PDF viewer container for DOM changes | ⭐⭐ Fallback |
-
-Both methods are debounced (3s) to avoid duplicate syncs.
-
-### Smart Overwrite (background.js)
+### Smart Syncing (background.js)
 
 When uploading, the extension:
-1. Searches for a folder named **"Overleaf Sync"** in Drive (creates it if missing).
-2. Checks if a file with the same project name already exists.
-3. If yes → uses `files.update` (PATCH) to replace content only — **the file ID and sharing link stay the same**.
-4. If no → creates a new file with `files.create`.
+1. Checks if the project is already linked in local storage.
+2. If no → Automatically opens the extension popup, prompting the user to create a new file in a folder named **"Overleaf Sync"** in Drive (creates it if missing).
+3. If yes → uses `files.update` (PATCH) to replace content only — **the file ID and sharing link stay the same, and the file is not renamed on Drive**.
 
 ---
 

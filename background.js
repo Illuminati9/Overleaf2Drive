@@ -30,8 +30,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     // ── Linking ──
     getPending:        () => handleGetPending(),
     createNewAndLink:  () => handleCreateNewAndLink(message.data),
-    linkExisting:      () => handleLinkExisting(message.data),
-    searchDrivePDFs:   () => handleSearchDrivePDFs(message.data),
     unlinkProject:     () => handleUnlinkProject(message.data),
     getProjectLinks:   () => handleGetProjectLinks(),
 
@@ -303,67 +301,7 @@ async function handleCreateNewAndLink({ projectId }) {
   return { success: true, fileId: result.id, fileName: pendingPDF.fileName };
 }
 
-/**
- * Use-case 2: User chooses "Link Existing File" and picks a PDF from Drive.
- * Overwrites that file's content with the pending PDF and stores the link.
- */
-async function handleLinkExisting({ projectId, driveFileId, driveFileName }) {
-  const { pendingPDF } = await chrome.storage.local.get('pendingPDF');
-  if (!pendingPDF || pendingPDF.projectId !== projectId) {
-    throw new Error('No pending PDF for this project');
-  }
 
-  const token = await getAuthToken(false);
-  const pdfBlob = base64ToBlob(pendingPDF.base64, 'application/pdf');
-
-  // Overwrite the chosen file's content (keep its name and sharing link).
-  const result = await updateFile(token, driveFileId, driveFileName, pdfBlob);
-
-  // Tag the file with the Overleaf project ID for future lookups.
-  await fetch(`${DRIVE_API_BASE}/files/${driveFileId}`, {
-    method: 'PATCH',
-    headers: { ...authHeader(token), 'Content-Type': 'application/json' },
-    body: JSON.stringify({ appProperties: { overleafProjectId: projectId } })
-  });
-
-  // Store the link.
-  await saveProjectLink(projectId, driveFileId, driveFileName, pendingPDF.projectName);
-
-  // Stats.
-  const count = (await storageGet('syncCount')) || 0;
-  await chrome.storage.local.set({
-    lastSync: new Date().toISOString(),
-    syncCount: count + 1,
-    lastProject: pendingPDF.projectName,
-    lastFileName: driveFileName,
-    lastFileId: driveFileId,
-    lastError: null
-  });
-
-  await clearPendingPDF();
-  console.log('[Overleaf2Drive] Linked to existing file:', driveFileId);
-  return { success: true, fileId: driveFileId, fileName: driveFileName };
-}
-
-/**
- * Search the user's Drive for PDF files (to let them pick one to link).
- */
-async function handleSearchDrivePDFs({ query }) {
-  const token = await getAuthToken(false);
-
-  let q = "mimeType='application/pdf' and trashed=false";
-  if (query && query.trim()) {
-    q += ` and name contains '${escapeDriveQuery(query.trim())}'`;
-  }
-
-  const url = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(q)}&fields=files(id,name,modifiedTime,parents)&orderBy=modifiedTime desc&pageSize=20`;
-
-  const resp = await fetch(url, { headers: authHeader(token) });
-  if (!resp.ok) throw new Error('Drive search failed');
-  const data = await resp.json();
-
-  return { success: true, files: data.files || [] };
-}
 
 /* ═══════════════════ Google Drive Helpers ═══════════════════ */
 

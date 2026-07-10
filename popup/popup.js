@@ -27,11 +27,6 @@ const els = {
   linkProjectName:   $('#link-project-name'),
   linkChoices:       $('#link-choices'),
   btnCreateNew:      $('#btn-create-new'),
-  btnLinkExisting:   $('#btn-link-existing'),
-  filePicker:        $('#file-picker'),
-  searchInput:       $('#search-input'),
-  fileList:          $('#file-list'),
-  btnBackToChoices:  $('#btn-back-to-choices'),
 
   // Dashboard
   btnDisconnect:     $('#btn-disconnect'),
@@ -59,9 +54,6 @@ async function init() {
   els.btnConnect.addEventListener('click', handleConnect);
   els.btnDisconnect.addEventListener('click', handleDisconnect);
   els.btnCreateNew.addEventListener('click', handleCreateNew);
-  els.btnLinkExisting.addEventListener('click', handleShowFilePicker);
-  els.btnBackToChoices.addEventListener('click', handleBackToChoices);
-  els.searchInput.addEventListener('input', handleSearchInput);
   
   setStatus('Checking connection…');
 
@@ -100,7 +92,6 @@ function showScreen(name, user) {
   } else if (name === 'link') {
     els.linkSection.style.display = '';
     els.linkChoices.style.display = '';
-    els.filePicker.style.display = 'none';
     els.connectionDot.className = 'connection-dot connected';
 
     if (pendingData) {
@@ -180,7 +171,6 @@ async function handleCreateNew() {
   if (!pendingData) return;
 
   els.btnCreateNew.disabled = true;
-  els.btnLinkExisting.disabled = true;
   setStatus('Creating file on Drive…', 'syncing');
 
   const resp = await sendMessage({
@@ -198,92 +188,10 @@ async function handleCreateNew() {
     }, 1200);
   } else {
     els.btnCreateNew.disabled = false;
-    els.btnLinkExisting.disabled = false;
     setStatus(resp?.error || 'Failed to create file', 'error');
   }
 }
 
-/* ═══════════════════ Linking: Existing File ═══════════════════ */
-
-async function handleShowFilePicker() {
-  els.linkChoices.style.display = 'none';
-  els.filePicker.style.display = '';
-  els.searchInput.value = '';
-  els.searchInput.focus();
-  loadDrivePDFs('');
-}
-
-function handleBackToChoices() {
-  els.filePicker.style.display = 'none';
-  els.linkChoices.style.display = '';
-}
-
-function handleSearchInput() {
-  clearTimeout(searchTimer);
-  searchTimer = setTimeout(() => {
-    loadDrivePDFs(els.searchInput.value);
-  }, 400);
-}
-
-async function loadDrivePDFs(query) {
-  els.fileList.innerHTML = '<div class="file-list-loading"><span class="spinner"></span> Searching Drive…</div>';
-
-  const resp = await sendMessage({ action: 'searchDrivePDFs', data: { query } });
-
-  if (!resp?.success || !resp.files) {
-    els.fileList.innerHTML = '<div class="file-list-empty">Could not search Drive</div>';
-    return;
-  }
-
-  if (resp.files.length === 0) {
-    els.fileList.innerHTML = '<div class="file-list-empty">No PDFs found</div>';
-    return;
-  }
-
-  els.fileList.innerHTML = '';
-  for (const file of resp.files) {
-    const row = document.createElement('button');
-    row.className = 'file-row';
-    row.innerHTML = `
-      <svg class="file-row-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" opacity="0.45"><path d="M4 1h5l4 4v9H3V1h1zm4 1v4h4L8 2z"/></svg>
-      <div class="file-row-info">
-        <span class="file-row-name">${escapeHtml(file.name)}</span>
-        <span class="file-row-date">${file.modifiedTime ? formatRelativeTime(file.modifiedTime) : ''}</span>
-      </div>
-    `;
-    row.addEventListener('click', () => handlePickFile(file));
-    els.fileList.appendChild(row);
-  }
-}
-
-async function handlePickFile(file) {
-  if (!pendingData) return;
-
-  // Disable all file rows.
-  els.fileList.querySelectorAll('.file-row').forEach(r => r.disabled = true);
-  setStatus(`Linking to "${file.name}"…`, 'syncing');
-
-  const resp = await sendMessage({
-    action: 'linkExisting',
-    data: {
-      projectId: pendingData.projectId,
-      driveFileId: file.id,
-      driveFileName: file.name
-    }
-  });
-
-  if (resp?.success) {
-    pendingData = null;
-    setStatus(`✅ Linked to "${file.name}"`, 'success');
-    setTimeout(async () => {
-      const auth = await sendMessage({ action: 'checkAuth' });
-      showScreen('dashboard', auth?.user);
-    }, 1200);
-  } else {
-    els.fileList.querySelectorAll('.file-row').forEach(r => r.disabled = false);
-    setStatus(resp?.error || 'Failed to link file', 'error');
-  }
-}
 
 /* ═══════════════════════ Settings ═══════════════════════ */
 
