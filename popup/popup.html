@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=380" />
+  <title>Overleaf2Drive</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- ────── Header ────── -->
+    <header class="header">
+      <div class="header-brand">
+        <img src="../icons/icon48.png" alt="Overleaf2Drive" class="header-logo" />
+        <div>
+          <h1 class="header-title">Overleaf2Drive</h1>
+          <p class="header-subtitle">Auto-Sync</p>
+        </div>
+      </div>
+      <div class="connection-dot" id="connection-dot" title="Disconnected"></div>
+    </header>
+
+    <!-- ═══════ Screen: Auth (not connected) ═══════ -->
+    <section class="card auth-card" id="auth-section">
+      <div class="auth-illustration">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <circle cx="24" cy="24" r="22" stroke="url(#grad)" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"/>
+          <path d="M24 14L32 28H16L24 14Z" fill="#4285F4" opacity="0.9"/>
+          <path d="M16 28L24 14L20 28H16Z" fill="#FBBC05" opacity="0.9"/>
+          <path d="M24 14L32 28H28L24 20V14Z" fill="#34A853" opacity="0.9"/>
+          <defs><linearGradient id="grad" x1="0" y1="0" x2="48" y2="48"><stop stop-color="#4285F4"/><stop offset="1" stop-color="#34A853"/></linearGradient></defs>
+        </svg>
+      </div>
+      <p class="auth-text">Connect your Google Drive to start syncing PDFs from Overleaf.</p>
+      <button class="btn btn-primary" id="btn-connect">
+        <svg class="btn-icon" width="18" height="18" viewBox="0 0 18 18"><path d="M9 3L14 11H4L9 3Z" fill="#fff"/></svg>
+        Connect Google Drive
+      </button>
+    </section>
+
+    <!-- ═══════ Screen: Linking (first sync, choose target) ═══════ -->
+    <section class="card link-card" id="link-section" style="display:none">
+      <div class="link-header">
+        <div class="link-badge">NEW</div>
+        <h2 class="link-title" id="link-project-name">Project Name</h2>
+        <p class="link-subtitle">This project hasn't been linked to a Drive file yet.</p>
+      </div>
+
+      <!-- Choice buttons -->
+      <div class="link-choices" id="link-choices">
+        <button class="choice-btn" id="btn-create-new">
+          <div class="choice-icon choice-icon-new">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor"><path d="M11 3v7H4v2h7v7h2v-7h7v-2h-7V3h-2z"/></svg>
+          </div>
+          <div class="choice-text">
+            <span class="choice-label">Create New File</span>
+            <span class="choice-desc">Upload to "Overleaf Sync" folder</span>
+          </div>
+        </button>
+        <button class="choice-btn" id="btn-link-existing">
+          <div class="choice-icon choice-icon-link">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="currentColor"><path d="M9.5 13.5L8 15a3.5 3.5 0 01-5-5l3-3a3.5 3.5 0 015 0l.5.5m-1-1L12 5a3.5 3.5 0 015 5l-3 3a3.5 3.5 0 01-5 0l-.5-.5"/></svg>
+          </div>
+          <div class="choice-text">
+            <span class="choice-label">Link Existing PDF</span>
+            <span class="choice-desc">Sync to a file already on Drive</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- File picker (shown after "Link Existing" is clicked) -->
+      <div class="file-picker" id="file-picker" style="display:none">
+        <div class="search-bar">
+          <svg class="search-icon" width="14" height="14" viewBox="0 0 14 14" fill="currentColor" opacity="0.4"><circle cx="6" cy="6" r="4.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M9.5 9.5L13 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input type="text" class="search-input" id="search-input" placeholder="Search your Drive PDFs…" />
+        </div>
+        <div class="file-list" id="file-list">
+          <div class="file-list-loading">Searching Drive…</div>
+        </div>
+        <button class="btn-text" id="btn-back-to-choices">← Back</button>
+      </div>
+    </section>
+
+    <!-- ═══════ Screen: Dashboard (connected & linked) ═══════ -->
+    <section class="card dashboard" id="dashboard-section" style="display:none">
+      <!-- User row -->
+      <div class="user-row">
+        <div class="avatar" id="user-avatar">?</div>
+        <div class="user-info">
+          <span class="user-name" id="user-name">—</span>
+          <span class="user-email" id="user-email">—</span>
+        </div>
+        <button class="btn-icon-only" id="btn-disconnect" title="Disconnect">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M6 2v1H2v10h12V3h-4V2H6zm1 1h2v2H7V3zM4 6h8v5H4V6z" opacity="0.7"/>
+            <path d="M7 7v3h2V7H7z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Stats grid -->
+      <div class="stats-grid">
+        <div class="stat">
+          <span class="stat-value" id="sync-count">0</span>
+          <span class="stat-label">Syncs</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="last-sync-time">Never</span>
+          <span class="stat-label">Last Sync</span>
+        </div>
+      </div>
+
+      <!-- Last synced project -->
+      <div class="last-project" id="last-project-row" style="display:none">
+        <svg class="file-icon" width="16" height="16" viewBox="0 0 16 16" fill="currentColor" opacity="0.5">
+          <path d="M4 1h5l4 4v9H3V1h1zm4 1v4h4L8 2z"/>
+        </svg>
+        <span class="last-project-name" id="last-project-name">—</span>
+      </div>
+
+      
+    </section>
+
+    <!-- ────── Status Bar ────── -->
+    <div class="status-bar" id="status-bar">
+      <span class="status-text" id="status-text">Checking connection…</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

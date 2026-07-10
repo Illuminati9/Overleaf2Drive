@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "Overleaf2Drive Sync",
+  "version": "1.0.0",
+  "description": "Sync your compiled Overleaf PDFs to Google Drive. Click to sync — your Drive stays up to date.",
+
+  "permissions": [
+    "identity",
+    "storage"
+  ],
+
+  "host_permissions": [
+    "https://*.overleaf.com/*",
+    "https://www.googleapis.com/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.overleaf.com/project/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Overleaf2Drive Auto-Sync",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+
+  "oauth2": {
+    "client_id": "823594298797-3dao9qt0i27m760aj3u4cubnmdd9t42n.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.readonly",
+      "https://www.googleapis.com/auth/drive.file"
+    ]
+  }
+}
