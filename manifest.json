@@ -3,7 +3,7 @@
   "name": "Overleaf2Drive Sync",
   "version": "1.0.0",
   "description": "Sync your compiled Overleaf PDFs to Google Drive. Click to sync — your Drive stays up to date.",
-
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsw5pv5+OZAT9e62ycfNSeKDZTmi4eoNSvSa9fgtceF7FZ2uClUh+WaXvmiU3cZDRma5LLmZWcL7J2F/jGCdn5JALX6nPxzlusalc3cedquz8q4IckWkid1adKiXYV/3C4YFZ4SABNjYWzR4C7OGi6Hw/psOU/VXdkLxWqAhxxUCrnqoSp7c9hgrddETnwJPvyoEE3xyARYqPSQ+1m9RXRdYa0918gdgjGMQZJMDrFE+HGus8TJ12rlHJAVgUtdg8SPXX1OisqtnMmQNv6C/3K7ESGMTcbRgMaEgOSZJcNqN7Z8BqUASr0ExtRUoQAToe80U48rtI/JuopUyk9RRzhwIDAQAB",
   "permissions": [
     "identity",
     "storage"
@@ -45,7 +45,7 @@
   },
 
   "oauth2": {
-    "client_id": "823594298797-3dao9qt0i27m760aj3u4cubnmdd9t42n.apps.googleusercontent.com",
+    "client_id": "823594298797-alrnuk5kjfs5vemipb3aqijq6520m7ta.apps.googleusercontent.com",
     "scopes": [
       "https://www.googleapis.com/auth/drive.readonly",
       "https://www.googleapis.com/auth/drive.file"

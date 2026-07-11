@@ -55,16 +55,46 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
 /* ══════════════════════ Authentication ══════════════════════ */
 
-function getAuthToken(interactive = false) {
+async function getAuthToken(interactive = false) {
+  // Check cached token first (bypass if user explicitly clicked connect)
+  if (!interactive) {
+    const { driveToken, driveTokenExpiry } = await chrome.storage.local.get(['driveToken', 'driveTokenExpiry']);
+    if (driveToken && driveTokenExpiry && Date.now() < driveTokenExpiry) {
+      return driveToken;
+    }
+  }
+
+  const manifest = chrome.runtime.getManifest();
+  const clientId = manifest.oauth2.client_id;
+  const scopes = manifest.oauth2.scopes.join(' ');
+  const redirectUri = chrome.identity.getRedirectURL();
+
+  const authUrl = `https://accounts.google.com/o/oauth2/auth?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes)}`;
+
   return new Promise((resolve, reject) => {
-    chrome.identity.getAuthToken({ interactive }, (token) => {
+    chrome.identity.launchWebAuthFlow({ url: authUrl, interactive }, (responseUrl) => {
       if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-      } else if (!token) {
-        reject(new Error('No auth token received'));
-      } else {
-        resolve(token);
+        return reject(new Error(chrome.runtime.lastError.message));
       }
+      if (!responseUrl) {
+        return reject(new Error('No auth token received'));
+      }
+
+      // Parse the hash fragment (e.g. #access_token=...&expires_in=3599)
+      const hash = new URL(responseUrl).hash.substring(1);
+      const params = new URLSearchParams(hash);
+      const token = params.get('access_token');
+      const expiresIn = parseInt(params.get('expires_in') || '3600', 10);
+
+      if (!token) {
+        return reject(new Error('Auth failed: No token returned'));
+      }
+
+      // Cache token with a 5-minute safety margin for expiration
+      const expiry = Date.now() + (expiresIn - 300) * 1000;
+      chrome.storage.local.set({ driveToken: token, driveTokenExpiry: expiry }, () => {
+        resolve(token);
+      });
     });
   });
 }
@@ -74,7 +104,17 @@ async function fetchUserInfo(token) {
     `${DRIVE_API_BASE}/about?fields=user(displayName,emailAddress)`,
     { headers: { Authorization: `Bearer ${token}` } }
   );
-  if (!resp.ok) throw new Error('Failed to fetch user info');
+  if (!resp.ok) {
+    const errorText = await resp.text();
+    console.error('[Overleaf2Drive] fetchUserInfo failed:', resp.status, errorText);
+    
+    if (resp.status === 401) {
+      // Token is invalid/expired. Clear it.
+      await chrome.storage.local.remove(['driveToken', 'driveTokenExpiry']);
+    }
+    
+    throw new Error(`Failed to fetch user info: ${resp.status}`);
+  }
   const data = await resp.json();
   return { name: data.user.displayName, email: data.user.emailAddress };
 }
@@ -96,22 +136,18 @@ async function handleCheckAuth() {
   }
 }
 
-function handleDisconnect() {
+async function handleDisconnect() {
+  const { driveToken } = await chrome.storage.local.get('driveToken');
+  if (driveToken) {
+    fetch(`https://accounts.google.com/o/oauth2/revoke?token=${driveToken}`).catch(() => {});
+  }
+  
   return new Promise((resolve) => {
-    chrome.identity.getAuthToken({ interactive: false }, (token) => {
-      if (token) {
-        chrome.identity.removeCachedAuthToken({ token }, () => {
-          fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`).catch(() => {});
-          chrome.storage.local.remove(
-            ['lastSync', 'syncCount', 'lastProject', 'lastFileName',
-             'lastFileId', 'userEmail', 'userName', 'pendingPDF', 'projectLinks'],
-            () => resolve({ success: true })
-          );
-        });
-      } else {
-        resolve({ success: true });
-      }
-    });
+    chrome.storage.local.remove(
+      ['driveToken', 'driveTokenExpiry', 'lastSync', 'syncCount', 'lastProject', 'lastFileName',
+       'lastFileId', 'userEmail', 'userName', 'pendingPDF', 'projectLinks'],
+      () => resolve({ success: true })
+    );
   });
 }
 
@@ -215,7 +251,41 @@ async function handleUpload({ base64, projectId, projectName, fileName }) {
 
   if (link) {
     // ── Auto-sync: project is already linked ──
-    return await syncToLinkedFile(link.driveFileId, base64, fileName, projectName, projectId);
+    try {
+      return await syncToLinkedFile(link.driveFileId, base64, fileName, projectName, projectId);
+    } catch (err) {
+      const msg = err.message.toLowerCase();
+      if (msg.includes('404') || msg.includes('trashed')) {
+        console.log('[Overleaf2Drive] Linked file was permanently deleted or trashed. Clearing link to recreate.');
+        await removeProjectLink(projectId);
+        // Fall through to create a new file!
+      } else if (msg.includes('interaction required') || msg.includes('auth') || msg.includes('token') || msg.includes('sign in')) {
+        console.log('[Overleaf2Drive] Auth failed during sync. Opening popup for login.');
+      } else {
+        console.log('[Overleaf2Drive] Sync failed with unknown error. Opening popup.');
+        chrome.windows.create({
+          url: chrome.runtime.getURL('popup/popup.html'),
+          type: 'popup',
+          width: 400,
+          height: 600,
+          focused: true
+        });
+        throw err;
+      }
+    }
+  }
+
+  // ── Auto-Recovery: check Google Drive for an existing tagged file ──
+  try {
+    const token = await getAuthToken(false);
+    const recoveredFileId = await findFileByProjectId(token, projectId);
+    if (recoveredFileId) {
+      console.log('[Overleaf2Drive] Auto-recovered lost link for project:', projectId);
+      await saveProjectLink(projectId, recoveredFileId, fileName, projectName);
+      return await syncToLinkedFile(recoveredFileId, base64, fileName, projectName, projectId);
+    }
+  } catch (err) {
+    console.warn('[Overleaf2Drive] Auto-recovery check failed:', err);
   }
 
   // ── First time: stash and ask the user ──
@@ -223,7 +293,7 @@ async function handleUpload({ base64, projectId, projectName, fileName }) {
   
   // Automatically open the extension UI to prompt linking
   chrome.windows.create({
-    url: 'popup/popup.html',
+    url: chrome.runtime.getURL('popup/popup.html'),
     type: 'popup',
     width: 400,
     height: 600,
@@ -305,6 +375,20 @@ async function handleCreateNewAndLink({ projectId }) {
 
 /* ═══════════════════ Google Drive Helpers ═══════════════════ */
 
+async function findFileByProjectId(token, projectId) {
+  const q = `appProperties has { key='overleafProjectId' and value='${escapeDriveQuery(projectId)}' } and trashed=false`;
+  const url = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(q)}&fields=files(id)&spaces=drive`;
+
+  const resp = await fetch(url, { headers: authHeader(token) });
+  if (!resp.ok) throw new Error('Failed to query Drive for existing link');
+  const data = await resp.json();
+
+  if (data.files && data.files.length > 0) {
+    return data.files[0].id;
+  }
+  return null;
+}
+
 async function findOrCreateFolder(token) {
   const q = `name='${SYNC_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
   const url = `${DRIVE_API_BASE}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&spaces=drive`;
@@ -373,7 +457,7 @@ async function updateFile(token, fileId, newFileName, blob) {
   form.append('file', blob, versionLabel);
 
   const resp = await fetch(
-    `${DRIVE_UPLOAD_BASE}/files/${fileId}?uploadType=multipart&fields=id,name,webViewLink`,
+    `${DRIVE_UPLOAD_BASE}/files/${fileId}?uploadType=multipart&fields=id,name,webViewLink,trashed`,
     { method: 'PATCH', headers: authHeader(token), body: form }
   );
 
@@ -381,7 +465,13 @@ async function updateFile(token, fileId, newFileName, blob) {
     const err = await resp.text();
     throw new Error(`Drive update failed (${resp.status}): ${err}`);
   }
-  return resp.json();
+  
+  const data = await resp.json();
+  if (data.trashed) {
+    throw new Error(`Drive update failed: File is trashed`);
+  }
+  
+  return data;
 }
 
 /* ══════════════════════════ Utilities ══════════════════════════ */

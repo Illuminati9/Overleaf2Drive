@@ -87,18 +87,6 @@
   async function triggerSync() {
     if (isSyncing) return;
 
-    // Check if user is authenticated first
-    const authOk = await new Promise((resolve) => {
-      chrome.runtime.sendMessage({ action: 'checkAuth' }, (resp) => {
-        resolve(resp && resp.success);
-      });
-    });
-
-    if (!authOk) {
-      console.log('[Overleaf2Drive] Not authenticated — skipping sync');
-      return;
-    }
-
     isSyncing = true;
     showToast('⏳ Syncing PDF to Google Drive…', 'syncing');
 
