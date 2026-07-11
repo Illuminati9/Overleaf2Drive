@@ -32,69 +32,26 @@ overtodrive/
 
 ---
 
-## Setup Instructions
+## Installation (Free via GitHub)
 
-### Step 1: Create a Google Cloud Project
+Since this extension is not published on the Chrome Web Store, you can install it manually in just 30 seconds:
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/).
-2. Click **Select a project** → **New Project**.
-3. Name it `Overleaf2Drive` (or anything you like) and click **Create**.
-4. Make sure the new project is selected in the top-left dropdown.
+1. **Download the Code**: Click the green **Code** button at the top of this repository and select **Download ZIP**.
+2. **Extract**: Unzip the downloaded file to a folder on your computer.
+3. **Open Extensions Page**: In Chrome (or Brave/Edge), type `chrome://extensions` in your address bar and press Enter.
+4. **Enable Developer Mode**: Turn on the **Developer mode** toggle in the top-right corner.
+5. **Load the Extension**: Click the **Load unpacked** button in the top-left and select the unzipped `overtodrive` folder.
 
-### Step 2: Enable the Google Drive API
+That's it! The extension is now installed.
 
-1. In the Cloud Console, go to **APIs & Services** → **Library**.
-2. Search for **Google Drive API** and click on it.
-3. Click **Enable**.
+### Connecting your Google Account
 
-### Step 3: Configure the OAuth Consent Screen
+1. Click the **Overleaf2Drive** icon (☁️) in your browser toolbar.
+2. Click **Connect Google Drive**.
+3. *Note: You may see a screen saying "Google hasn't verified this app" because this is an indie developer project. Simply click **Advanced** at the bottom, and then click **Go to Overleaf2Drive (unsafe)** to proceed.*
+4. Log in and grant permission.
 
-1. Go to **APIs & Services** → **OAuth consent screen**.
-2. Select **External** user type and click **Create**.
-3. Fill in the required fields:
-   - **App name**: `Overleaf2Drive`
-   - **User support email**: Your email
-   - **Developer contact**: Your email
-4. Click **Save and Continue** through the remaining steps.
-5. Under **Test users**, add your own Google email address.
-
-### Step 4: Create OAuth2 Credentials
-
-1. Go to **APIs & Services** → **Credentials**.
-2. Click **+ Create Credentials** → **OAuth client ID**.
-3. Set **Application type** to **Chrome Extension**.
-4. You'll need your extension's ID. To get it:
-   - First, load the extension in Chrome (see Step 5).
-   - Copy the extension ID from `chrome://extensions`.
-   - Come back here and paste it into the **Item ID** field.
-5. Click **Create** and copy the **Client ID** (looks like `123456789.apps.googleusercontent.com`).
-
-### Step 5: Configure & Load the Extension
-
-1. **Set the Client ID**: Open `manifest.json` and replace the placeholder:
-   ```json
-   "oauth2": {
-     "client_id": "YOUR_ACTUAL_CLIENT_ID.apps.googleusercontent.com",
-     ...
-   }
-   ```
-
-2. **Load in Chrome**:
-   - Open `chrome://extensions/` in Chrome.
-   - Enable **Developer mode** (toggle in the top-right).
-   - Click **Load unpacked**.
-   - Select the `overtodrive` project folder.
-   - Note the **Extension ID** shown on the card.
-
-3. **Finish OAuth Setup** (if you haven't already):
-   - Go back to the Google Cloud Console → Credentials.
-   - Edit your OAuth client and set the **Item ID** to the extension ID from above.
-
-### Step 6: Connect & Use
-
-1. Click the **Overleaf2Drive** icon in your Chrome toolbar.
-2. Click **Connect Google Drive** and authorize with your Google account.
-3. Open any project on [Overleaf](https://www.overleaf.com) and you will see the **Drive Sync** button. Click it to sync!
+You are now ready to open any Overleaf project and click the **☁️ Drive Sync** button!
 
 ---
 
