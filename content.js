@@ -88,6 +88,16 @@
     if (isSyncing) return;
 
     isSyncing = true;
+    
+    if (isCompiling()) {
+      showToast('⏳ Waiting for compile to finish…', 'syncing');
+      while (isCompiling()) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+      // Give the server a small grace period to flush the new PDF
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
     showToast('⏳ Syncing PDF to Google Drive…', 'syncing');
 
     try {
@@ -149,6 +159,26 @@
   }
 
   /* ──────────────────── Helpers ──────────────────── */
+
+  /**
+   * Check if Overleaf is currently compiling the document.
+   */
+  function isCompiling() {
+    // Check if recompile button is disabled
+    const recompileBtn = document.querySelector('.btn-recompile, [aria-label*="Recompile" i], button[class*="recompile" i]');
+    if (recompileBtn && recompileBtn.disabled) return true;
+    
+    // Check for "Compiling..." text in buttons
+    const buttons = Array.from(document.querySelectorAll('button'));
+    const compilingBtn = buttons.find(b => (b.innerText || '').toLowerCase().includes('compiling'));
+    if (compilingBtn) return true;
+
+    // Check for specific progress indicators or spinners in the recompile button
+    const recompileIcon = document.querySelector('.btn-recompile .fa-spin, .compile-progress-bar');
+    if (recompileIcon) return true;
+
+    return false;
+  }
 
   /**
    * Extract the actual PDF URL from the page.
